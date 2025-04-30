@@ -1,4 +1,6 @@
 import { User } from "../model/user.model.js";
+import { publishToQueue } from "../service/RabbitMQ.js";
+import { uploadOnCloudinary } from "../utility/uploadOnCloudinary.js";
 
 const makeAccount = async (req, res) => {
   try {
@@ -78,4 +80,81 @@ const logoutUser = async (req, res) => {
     .json({ message: "logged Out successfully." });
 };
 
-export { makeAccount, loginUser, logoutUser };
+const changePassword = async (req, res) => {
+  const { oldPassword, newPassword } = req.body;
+  const userId = req.user?._id;
+  const user = await User.findById(userId);
+  if (!user) {
+    return res.status(404).json({ message: "user not found." });
+  }
+  const isPasswordValid = await user.isPasswordCorrect(oldPassword);
+  if (!isPasswordValid) {
+    return res.status(404).json({ message: "Invalid old password." });
+  }
+  user.password = newPassword;
+  await user.save();
+  return res.status(200).json({ message: "password changed successfully." });
+};
+
+const uploadPost = async (req, res) => {
+  try {
+    const post = req.files?.post[0]?.path;
+    if (!post) {
+      return res.status(404).json({ message: "No file uploaded." });
+    }
+
+    const uploadResponse = await uploadOnCloudinary(post);
+
+    console.log("Upload Response in Controller:", uploadResponse); // ✅ add this
+
+    if (!uploadResponse) {
+      return res.status(404).json({ message: "Error uploading file." });
+    }
+
+    const userId = req.user?._id;
+    const message = {
+      userId,
+      post: uploadResponse,
+    };
+    publishToQueue("post", JSON.stringify(message));
+
+    return res.status(200).json({
+      message: "Post uploaded successfully.",
+      response: uploadResponse,
+    });
+  } catch (error) {
+    console.error("UploadPost Error:", error);
+    res
+      .status(500)
+      .json({ message: "Internal server error", error: error.message });
+  }
+};
+
+const generateRoomId = (recipientId, senderId) => {
+  return `${recipientId} + ${senderId}`;
+};
+
+const socketChatHandler = (io) => {
+  io.on("connection", (socket) => {
+    console.log(`New client connected: ${socket.id}`);
+
+    socket.on("joinChat", ({ senderId, recipientId }) => {
+      const roomId = generateRoomId(senderId, recipientId);
+      socket.join(roomId);
+      console.log(`User ${senderId} joined room ${roomId}`);
+    });
+
+    socket.on("sendMessage", ({ senderId, recipientId, message }) => {
+      const roomId = generateRoomId(senderId, recipientId);
+      io.to(roomId).emit("receiveMessage", { senderId, message });
+      console.log(`Message from ${senderId} to room ${roomId}: ${message}`);
+    });
+
+    socket.on("disconnect", () => {
+      console.log(`Client disconnected: ${socket.id}`);
+    });
+  });
+};
+
+
+export { makeAccount, loginUser, logoutUser, changePassword, uploadPost, socketChatHandler };
