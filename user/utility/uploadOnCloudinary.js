@@ -15,13 +15,10 @@ const uploadOnCloudinary = async (localFilePath) => {
   try {
     if (!localFilePath) return null;
 
-    console.log("Uploading to Cloudinary:", localFilePath);
     const response = await cloudinary.uploader.upload(localFilePath, {
       resource_type: "auto",
       timeout: 120000,
     });
-
-    console.log("File uploaded to Cloudinary:", response);
 
     // Delete only after successful upload
     if (fs.existsSync(localFilePath)) {

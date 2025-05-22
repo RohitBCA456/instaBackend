@@ -98,7 +98,8 @@ const changePassword = async (req, res) => {
 
 const uploadPost = async (req, res) => {
   try {
-    const post = req.files?.post[0]?.path;
+    const post = req.file?.path;
+    console.log(post)
     if (!post) {
       return res.status(404).json({ message: "No file uploaded." });
     }
@@ -113,7 +114,7 @@ const uploadPost = async (req, res) => {
 
     const userId = req.user?._id;
     const message = {
-      userId,
+      userId: userId,
       post: uploadResponse,
     };
     publishToQueue("post", JSON.stringify(message));
@@ -130,31 +131,4 @@ const uploadPost = async (req, res) => {
   }
 };
 
-const generateRoomId = (recipientId, senderId) => {
-  return `${recipientId} + ${senderId}`;
-};
-
-const socketChatHandler = (io) => {
-  io.on("connection", (socket) => {
-    console.log(`New client connected: ${socket.id}`);
-
-    socket.on("joinChat", ({ senderId, recipientId }) => {
-      const roomId = generateRoomId(senderId, recipientId);
-      socket.join(roomId);
-      console.log(`User ${senderId} joined room ${roomId}`);
-    });
-
-    socket.on("sendMessage", ({ senderId, recipientId, message }) => {
-      const roomId = generateRoomId(senderId, recipientId);
-      io.to(roomId).emit("receiveMessage", { senderId, message });
-      console.log(`Message from ${senderId} to room ${roomId}: ${message}`);
-    });
-
-    socket.on("disconnect", () => {
-      console.log(`Client disconnected: ${socket.id}`);
-    });
-  });
-};
-
-
-export { makeAccount, loginUser, logoutUser, changePassword, uploadPost, socketChatHandler };
+export { makeAccount, loginUser, logoutUser, changePassword, uploadPost};
