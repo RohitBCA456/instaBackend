@@ -115,7 +115,7 @@ const uploadPost = async (req, res) => {
     const userId = req.user?._id;
     const message = {
       userId: userId,
-      post: uploadResponse,
+      post: uploadResponse.secure_url,
     };
     publishToQueue("post", JSON.stringify(message));
 

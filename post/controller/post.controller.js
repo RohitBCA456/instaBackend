@@ -1,20 +1,26 @@
-import { Post } from "../model/post.model";
-import { subscribeToQueue } from "../service/RabbitMQ";
+import { Post } from "../model/post.model.js";
+import { subscribeToQueue } from "../service/RabbitMQ.js";
 
 const savePostToDataBase = async (req, res) => {
-  subscribeToQueue("post", (data) => {
-    const userId = data.userId;
-    const postURL = data.post;
+  subscribeToQueue("post", async (data) => {
+    try {
+      const parsedData = JSON.parse(data);
+      const userId = parsedData.userId;
+      const postURL = parsedData.post;
 
-    const post = Post.create({
-      userId,
-      postURL,
-    });
-    if (!post) {
-      return res.status(404).json({ message: "PostURL not saved." });
+      if (!userId || !postURL) {
+        console.error("Missing fields:", { userId, postURL });
+        return; // Or handle the error appropriately
+      }
+
+      const post = await Post.create({ userId, postURL });
+      console.log("Post saved to DB:", post);
+      return;
+    } catch (err) {
+      console.error("Error processing message:", err.message);
     }
-    return res.status(200).json({ message: "PostURL saved successfully." });
   });
 };
+
 
 export { savePostToDataBase };
